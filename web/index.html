@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FeSolar HEMS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;700;800&display=swap');
+
+      :root {
+        --bg-main: #eef3f9;
+        --bg-soft: #fafcff;
+        --bg-deep: #e4ecf5;
+        --ink-strong: #2f3b4c;
+        --ink-muted: #69798f;
+        --accent-blue: #6d89b0;
+        --accent-teal: #63a18c;
+        --accent-lilac: #8f9ac2;
+        --glass-hero-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.78), rgba(241, 246, 253, 0.62));
+        --glass-card-bg: linear-gradient(155deg, rgba(255, 255, 255, 0.66), rgba(240, 246, 253, 0.5));
+        --glass-chip-bg: linear-gradient(155deg, rgba(255, 255, 255, 0.56), rgba(239, 245, 252, 0.42));
+        --glass-border: rgba(172, 188, 211, 0.44);
+        --glass-highlight: rgba(255, 255, 255, 0.84);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: 'Plus Jakarta Sans', 'Noto Sans SC', 'PingFang SC', sans-serif;
+        color: var(--ink-strong);
+        background:
+          radial-gradient(circle at 12% 10%, rgba(255, 245, 224, 0.66), transparent 43%),
+          radial-gradient(circle at 84% 8%, rgba(210, 227, 245, 0.56), transparent 41%),
+          radial-gradient(circle at 52% 80%, rgba(216, 234, 248, 0.42), transparent 50%),
+          linear-gradient(170deg, var(--bg-soft), var(--bg-main) 47%, var(--bg-deep));
+      }
+
+      #root {
+        min-height: 100vh;
+      }
+
+      h1,
+      h2,
+      h3,
+      h4,
+      .font-heading {
+        font-family: 'Plus Jakarta Sans', 'Noto Sans SC', sans-serif;
+        letter-spacing: 0.01em;
+      }
+
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+        background: transparent;
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background: rgba(128, 145, 168, 0.42);
+        border-radius: 999px;
+      }
+
+      ::-webkit-scrollbar-thumb:hover {
+        background: rgba(120, 139, 164, 0.6);
+      }
+
+      .glass-hero {
+        background: var(--glass-hero-bg);
+        border: 1px solid var(--glass-border);
+        box-shadow:
+          0 24px 46px rgba(96, 115, 142, 0.17),
+          0 6px 14px rgba(88, 106, 132, 0.14),
+          inset 0 1px 0 var(--glass-highlight);
+        backdrop-filter: blur(24px) saturate(138%);
+        -webkit-backdrop-filter: blur(24px) saturate(138%);
+      }
+
+      .glass-card {
+        background: var(--glass-card-bg);
+        border: 1px solid rgba(174, 190, 211, 0.52);
+        box-shadow:
+          0 14px 30px rgba(96, 113, 137, 0.14),
+          inset 0 1px 0 rgba(255, 255, 255, 0.64);
+        backdrop-filter: blur(18px) saturate(130%);
+        -webkit-backdrop-filter: blur(18px) saturate(130%);
+      }
+
+      .glass-chip {
+        background: var(--glass-chip-bg);
+        border: 1px solid rgba(180, 195, 214, 0.56);
+        box-shadow:
+          0 8px 18px rgba(96, 114, 136, 0.1),
+          inset 0 1px 0 rgba(255, 255, 255, 0.6);
+        backdrop-filter: blur(11px) saturate(118%);
+        -webkit-backdrop-filter: blur(11px) saturate(118%);
+      }
+
+      .glass-panel-dark {
+        background: var(--glass-card-bg);
+        border: 1px solid rgba(174, 190, 211, 0.52);
+        box-shadow:
+          0 14px 30px rgba(96, 113, 137, 0.14),
+          inset 0 1px 0 rgba(255, 255, 255, 0.64);
+        backdrop-filter: blur(18px) saturate(130%);
+        -webkit-backdrop-filter: blur(18px) saturate(130%);
+      }
+
+      .glass-panel-soft {
+        background: var(--glass-chip-bg);
+        border: 1px solid rgba(180, 195, 214, 0.56);
+        box-shadow:
+          0 8px 18px rgba(96, 114, 136, 0.1),
+          inset 0 1px 0 rgba(255, 255, 255, 0.6);
+        backdrop-filter: blur(11px) saturate(118%);
+        -webkit-backdrop-filter: blur(11px) saturate(118%);
+      }
+
+      .warm-chip {
+        border: 1px solid rgba(176, 192, 213, 0.62);
+        background: var(--glass-chip-bg);
+        color: #607087;
+      }
+
+      .home-kpi {
+        background: linear-gradient(150deg, rgba(255, 255, 255, 0.7), rgba(235, 243, 252, 0.48));
+        border: 1px solid rgba(177, 194, 216, 0.58);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.76),
+          0 10px 24px rgba(96, 113, 137, 0.12);
+      }
+
+      .surface-noise {
+        background-image: radial-gradient(rgba(255, 255, 255, 0.12) 0.45px, transparent 0.45px);
+        background-size: 3px 3px;
+        opacity: 0.18;
+        pointer-events: none;
+      }
+
+      .flow-path {
+        stroke-dasharray: 9 13;
+        animation: flow-drift 2.35s linear infinite;
+      }
+
+      @keyframes flow-drift {
+        to {
+          stroke-dashoffset: -24;
+        }
+      }
+
+      @keyframes pulse-soft {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 0.7;
+        }
+        50% {
+          transform: scale(1.05);
+          opacity: 1;
+        }
+      }
+
+      @keyframes panel-enter {
+        from {
+          opacity: 0;
+          transform: translateX(18px) translateY(6px) scale(0.985);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0) translateY(0) scale(1);
+        }
+      }
+
+      .panel-enter {
+        animation: panel-enter 220ms cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      .pulse-soft {
+        animation: pulse-soft 2.4s ease-in-out infinite;
+      }
+
+      .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+      }
+
+      .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+    "recharts": "https://aistudiocdn.com/recharts@^3.5.1",
+    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

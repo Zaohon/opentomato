@@ -1,0 +1,55 @@
+replicaCount: 1
+
+image:
+  repository: ""
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "180"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "180"
+    nginx.ingress.kubernetes.io/proxy-body-size: "200m"
+  hosts:
+    - host: ""
+      paths:
+        - path: /api/v1
+          pathType: Prefix
+  tls: []
+
+envFromSecret: ""
+env:
+  APP_ENV: production
+  LOG_OUTPUT: k8s
+  LOG_LANGUAGE: cn
+  LOG_TIMING_ENABLED: "true"
+  STRICT_EXTERNAL_DEPENDENCIES: "true"
+  STATUS_REQUIRE_REAL_DATA: "true"
+  OPENVIKING_ENABLED: "true"
+  OPENVIKING_STRONG_ISOLATION: "true"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+probes:
+  livenessPath: /healthz
+  readinessPath: /readyz
+  initialDelaySeconds: 15
+  periodSeconds: 60
+  timeoutSeconds: 15
+  failureThreshold: 12

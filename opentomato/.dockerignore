@@ -1,0 +1,17 @@
+.git
+.gitignore
+.env
+.env.*
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite
+*.log
+*.pid
+frontend/
+docs/
+tests/
+scripts/
+.agents/
+.claude/

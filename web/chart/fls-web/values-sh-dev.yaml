@@ -1,0 +1,31 @@
+replicaCount: 1
+
+imagePullSecrets:
+  - name: acr-registry-shanghai
+
+service:
+  type: ClusterIP
+  annotations: {}
+
+backend:
+  apiUpstream: "http://hems-agent-backend"
+
+tls:
+  enabled: false
+  secretName: ""
+
+ingress:
+  enabled: true
+  className: nginx
+  certificateArn: ""
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: agent-dev.felicitysolar-shanghai.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - agent-dev.felicitysolar-shanghai.com
+      secretName: agent-dev-tls

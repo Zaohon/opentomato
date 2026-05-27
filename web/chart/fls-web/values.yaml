@@ -1,0 +1,47 @@
+replicaCount: 1
+
+image:
+  repository: ""
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+service:
+  type: ClusterIP
+  port: 80
+  httpsPort: 443
+  annotations: {}
+
+backend:
+  apiUpstream: "http://hems-agent-backend"
+  openvikingApiUpstream: "http://openviking:1933"
+
+tls:
+  enabled: false
+  secretName: ""
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: ""
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
+
+probes:
+  path: /healthz
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 3

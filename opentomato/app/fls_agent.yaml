@@ -1,0 +1,107 @@
+﻿version: 1
+main_agent: router
+max_hand_off: 2
+logs_dir: logs
+loging_level: DEBUG
+skills_dir: skills
+
+agents:
+  router:
+    definition: router
+    default_model: qwen-turbo
+    skills:
+      - routing_policy
+    tools:
+      - handoff_tool
+    execution:
+      response_mode: handoff_only
+      default_handoff: support_agent
+      bind_tools: true
+      bind_memory: false
+      initial_tool_choice: auto
+    allowed_handoff:
+      - control_agent
+      - analyst_agent
+      - support_agent
+      - suggestion_agent
+
+  control_agent:
+    definition: control
+    default_model: qwen3.6-plus
+    skills:
+      - safety_policy
+    tools:
+      - memory_recall
+      - memory_read
+      - memory_commit
+      - memory_store
+    allowed_handoff:
+      - support_agent
+      - analyst_agent
+    execution:
+      response_mode: normal
+      bind_tools: true
+      bind_memory: true
+      initial_tool_choice: auto
+
+  analyst_agent:
+    definition: analyst
+    default_model: qwen3.6-plus
+    skills:
+      - analysis_policy
+    tools:
+      - get_energy_flow
+      - get_station_forecast_24h
+      - memory_recall
+      - memory_read
+      - memory_commit
+      - memory_store
+    allowed_handoff:
+      - control_agent
+      - support_agent
+    execution:
+      response_mode: normal
+      bind_tools: true
+      bind_memory: true
+      initial_tool_choice: auto
+
+  support_agent:
+    definition: support
+    default_model: qwen3.6-plus
+    skills: []
+    tools:
+      - get_station_forecast_24h
+      - memory_recall
+      - memory_read
+      - memory_commit
+      - memory_store
+    allowed_handoff:
+      - control_agent
+      - analyst_agent
+    execution:
+      response_mode: normal
+      bind_tools: true
+      bind_memory: true
+      initial_tool_choice: auto
+
+  suggestion_agent:
+    definition: suggestion
+    default_model: qwen3.6-plus
+    skills: []
+    tools:
+      - get_energy_flow
+      - get_station_forecast_24h
+      - memory_recall
+      - memory_read
+      - memory_commit
+      - memory_store
+    allowed_handoff:
+      - analyst_agent
+      - control_agent
+      - support_agent
+    execution:
+      response_mode: normal
+      bind_tools: true
+      bind_memory: true
+      initial_tool_choice: auto
+

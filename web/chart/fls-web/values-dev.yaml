@@ -1,0 +1,13 @@
+replicaCount: 1
+
+service:
+  type: LoadBalancer
+  annotations:
+    service.beta.kubernetes.io/alibaba-cloud-loadbalancer-address-type: internet
+
+tls:
+  enabled: true
+  secretName: fls-web-tls
+
+ingress:
+  enabled: false

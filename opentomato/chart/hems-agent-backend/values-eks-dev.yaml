@@ -1,0 +1,12 @@
+replicaCount: 1
+
+ingress:
+  enabled: false
+
+env:
+  LOG_OUTPUT: both
+  LOG_LANGUAGE: cn
+  LOG_TIMING_ENABLED: "true"
+  OPENVIKING_ENABLED: "true"
+  OPENVIKING_STRONG_ISOLATION: "true"
+  OPENVIKING_URL: "http://openviking:1933"

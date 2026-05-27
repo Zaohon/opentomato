@@ -1,0 +1,286 @@
+stages:
+  - verify
+  - build
+  - deploy
+  - smoke
+
+variables:
+  GIT_DEPTH: "1"
+  DEV_NAMESPACE: "fls-dev"
+  HELM_RELEASE: "fls-web"
+  CHART_DIR: "chart/fls-web"
+  IMAGE_PULL_SECRET: "acr-registry"
+  SH_DEV_NAMESPACE: "fls-dev"
+  SH_HELM_RELEASE: "fls-web"
+  SH_IMAGE_PULL_SECRET: "acr-registry-shanghai"
+  SH_ACR_REGISTRY: "fls-dsw-registry-vpc.cn-shanghai.cr.aliyuncs.com"
+  SH_ACR_IMAGE_REPO: "fesolarsh/fls-web"
+  SH_NODE_IMAGE: "docker.m.daocloud.io/library/node:20-alpine"
+  SH_NGINX_IMAGE: "docker.m.daocloud.io/library/nginx:1.27-alpine"
+  SH_INGRESS_HOST: "agent-dev.felicitysolar-shanghai.com"
+  SH_KUBECTL_IMAGE: "docker.m.daocloud.io/alpine/k8s:1.29.15"
+  SH_CURL_IMAGE: "docker.m.daocloud.io/curlimages/curl:8.5.0"
+  AWS_REGION: "eu-central-1"
+  AWS_DEV_NAMESPACE: "fls-dev"
+  AWS_ECR_REGISTRY: "041492853875.dkr.ecr.eu-central-1.amazonaws.com"
+  AWS_ECR_REPOSITORY: "fls/fls-web"
+  AWS_INGRESS_HOST: "agent-aws-dev.felicitysolar-shanghai.com"
+  AWS_SHARED_ALB_HOST: "fls-eu-alb-dev-1616053831.eu-central-1.elb.amazonaws.com"
+  AWS_ALB_CERT_ARN: "arn:aws:acm:eu-central-1:041492853875:certificate/52cefcf4-8e17-496b-a74c-96927358fde8"
+
+  # Override these in GitLab Variables if needed.
+  NODE_IMAGE: "docker.m.daocloud.io/library/node:20-alpine"
+  NGINX_IMAGE: "docker.m.daocloud.io/library/nginx:1.27-alpine"
+  KANIKO_IMAGE: "registry.gitlab.com/kaniko-project/executor:debug"
+  SH_KANIKO_IMAGE: "registry.gitlab.com/kaniko-project/executor:debug"
+  BUILDAH_IMAGE: "docker.m.daocloud.io/quay.io/buildah/stable"
+  HELM_IMAGE: "docker.m.daocloud.io/alpine/helm:3.14.4"
+  # Keep a shell-capable kubectl image for GitLab Kubernetes executor.
+  KUBECTL_IMAGE: "docker.m.daocloud.io/alpine/k8s:1.29.15"
+  CURL_IMAGE: "docker.m.daocloud.io/curlimages/curl:8.5.0"
+
+default:
+  tags: ["ack-dev"]
+
+verify:
+  stage: verify
+  image: $NODE_IMAGE
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - node_modules/
+  script:
+    - npm ci
+    - npm run build
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+
+build_image:
+  stage: build
+  image:
+    name: $SH_KANIKO_IMAGE
+    entrypoint: [""]
+  script:
+    - REGISTRY="${ACR_REGISTRY_DEV:-$ACR_REGISTRY}"
+    - REPO="${ACR_IMAGE_REPO_DEV:-$ACR_IMAGE_REPO}"
+    - USERNAME="${ACR_USERNAME_DEV:-$ACR_USERNAME}"
+    - PASSWORD="${ACR_PASSWORD_DEV:-$ACR_PASSWORD}"
+    - IMAGE_REPO="$REGISTRY/$REPO"
+    - IMAGE_TAG="$CI_COMMIT_SHORT_SHA"
+    - test -n "$REGISTRY"
+    - test -n "$REPO"
+    - test -n "$USERNAME"
+    - test -n "$PASSWORD"
+    - mkdir -p /kaniko/.docker
+    - |
+      cat > /kaniko/.docker/config.json <<CFG
+      {"auths":{"$REGISTRY":{"username":"$USERNAME","password":"$PASSWORD"}}}
+      CFG
+    - /kaniko/executor
+      --context "$CI_PROJECT_DIR"
+      --dockerfile "$CI_PROJECT_DIR/Dockerfile"
+      --build-arg NODE_IMAGE="$NODE_IMAGE"
+      --build-arg NGINX_IMAGE="$NGINX_IMAGE"
+      --destination "$IMAGE_REPO:$IMAGE_TAG"
+      --destination "$IMAGE_REPO:latest"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+
+deploy_dev:
+  stage: deploy
+  image: $HELM_IMAGE
+  script:
+    - REGISTRY="${ACR_REGISTRY_DEV:-$ACR_REGISTRY}"
+    - REPO="${ACR_IMAGE_REPO_DEV:-$ACR_IMAGE_REPO}"
+    - IMAGE_REPO="$REGISTRY/$REPO"
+    - IMAGE_TAG="$CI_COMMIT_SHORT_SHA"
+    - KCFG="${KUBECONFIG_B64_ACK_DEV:-${KUBECONFIG_B64_DEV:-$KUBECONFIG_B64}}"
+    - test -n "$KCFG"
+    - echo "$KCFG" | base64 -d > kubeconfig
+    - export KUBECONFIG="$PWD/kubeconfig"
+    - helm upgrade --install "$HELM_RELEASE" "$CHART_DIR"
+      --namespace "$DEV_NAMESPACE" --create-namespace
+      --values "$CHART_DIR/values-dev.yaml"
+      --set imagePullSecrets[0].name="$IMAGE_PULL_SECRET"
+      --set image.repository="$IMAGE_REPO"
+      --set image.tag="$IMAGE_TAG"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+
+smoke_dev:
+  stage: smoke
+  image:
+    # Use a shell-capable kubectl image directly to avoid project-level variable overrides.
+    name: $KUBECTL_IMAGE
+    entrypoint: [""]
+  script:
+    - KCFG="${KUBECONFIG_B64_ACK_DEV:-${KUBECONFIG_B64_DEV:-$KUBECONFIG_B64}}"
+    - test -n "$KCFG"
+    - echo "$KCFG" | base64 -d > kubeconfig
+    - export KUBECONFIG="$PWD/kubeconfig"
+    - |
+      if ! kubectl -n "$DEV_NAMESPACE" rollout status deploy/"$HELM_RELEASE" --timeout=600s; then
+        echo "[smoke] rollout status timeout, dump diagnostics and fallback to Available condition check"
+        kubectl -n "$DEV_NAMESPACE" get deploy/"$HELM_RELEASE" -o wide || true
+        kubectl -n "$DEV_NAMESPACE" get rs -l app.kubernetes.io/instance="$HELM_RELEASE" -o wide || true
+        kubectl -n "$DEV_NAMESPACE" get pods -l app.kubernetes.io/instance="$HELM_RELEASE" -o wide || true
+        kubectl -n "$DEV_NAMESPACE" describe deploy/"$HELM_RELEASE" || true
+        kubectl -n "$DEV_NAMESPACE" wait deploy/"$HELM_RELEASE" --for=condition=Available --timeout=180s
+      fi
+    - kubectl -n "$DEV_NAMESPACE" run smoke --rm -i --restart=Never --image="$CURL_IMAGE" -- curl -fsS "http://$HELM_RELEASE/healthz"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+
+build_image_shanghai:
+  stage: build
+  image:
+    name: $SH_KANIKO_IMAGE
+    entrypoint: [""]
+  tags: ["ack-sh-dev"]
+  variables:
+    GIT_STRATEGY: "fetch"
+  script:
+    - REGISTRY="${ACR_REGISTRY_SH_DEV:-$SH_ACR_REGISTRY}"
+    - REPO="${ACR_IMAGE_REPO_SH_DEV:-$SH_ACR_IMAGE_REPO}"
+    - USERNAME="$ACR_USERNAME_SH_DEV"
+    - PASSWORD="$ACR_PASSWORD_SH_DEV"
+    - IMAGE_REPO="$REGISTRY/$REPO"
+    - IMAGE_TAG="$CI_COMMIT_SHORT_SHA"
+    - test -n "$REGISTRY"
+    - test -n "$REPO"
+    - test -n "$USERNAME"
+    - test -n "$PASSWORD"
+    - mkdir -p /kaniko/.docker
+    - |
+      cat > /kaniko/.docker/config.json <<CFG
+      {"auths":{"$REGISTRY":{"username":"$USERNAME","password":"$PASSWORD"}}}
+      CFG
+    - /kaniko/executor
+      --force
+      --context "$CI_PROJECT_DIR"
+      --dockerfile "$CI_PROJECT_DIR/Dockerfile.shanghai"
+      --build-arg SH_NODE_IMAGE="$SH_NODE_IMAGE"
+      --build-arg NGINX_IMAGE="$SH_NGINX_IMAGE"
+      --destination "$IMAGE_REPO:$IMAGE_TAG"
+      --destination "$IMAGE_REPO:develop-latest"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "sh-develop"'
+
+deploy_shanghai_dev:
+  stage: deploy
+  image:
+    name: $SH_KUBECTL_IMAGE
+    entrypoint: [""]
+  tags: ["ack-sh-dev"]
+  needs: ["build_image_shanghai"]
+  variables:
+    GIT_STRATEGY: "fetch"
+  script:
+    - CHART_DIR="$CI_PROJECT_DIR/chart/fls-web"
+    - REGISTRY="${ACR_REGISTRY_SH_DEV:-$SH_ACR_REGISTRY}"
+    - REPO="${ACR_IMAGE_REPO_SH_DEV:-$SH_ACR_IMAGE_REPO}"
+    - USERNAME="$ACR_USERNAME_SH_DEV"
+    - PASSWORD="$ACR_PASSWORD_SH_DEV"
+    - IMAGE_REPO="$REGISTRY/$REPO"
+    - IMAGE_TAG="$CI_COMMIT_SHORT_SHA"
+    - KCFG="$KUBECONFIG_B64_ACK_SH_DEV"
+    - test -n "$REGISTRY"
+    - test -n "$REPO"
+    - test -n "$USERNAME"
+    - test -n "$PASSWORD"
+    - test -n "$KCFG"
+    - echo "$KCFG" | base64 -d > kubeconfig
+    - chmod 600 kubeconfig
+    - export KUBECONFIG="$PWD/kubeconfig"
+    - kubectl -n "$SH_DEV_NAMESPACE" create secret docker-registry "$SH_IMAGE_PULL_SECRET" --docker-server="$REGISTRY" --docker-username="$USERNAME" --docker-password="$PASSWORD" --dry-run=client -o yaml | kubectl apply -f -
+    - helm upgrade --install "$SH_HELM_RELEASE" "$CHART_DIR"
+      --namespace "$SH_DEV_NAMESPACE" --create-namespace
+      --values "$CHART_DIR/values-sh-dev.yaml"
+      --set imagePullSecrets[0].name="$SH_IMAGE_PULL_SECRET"
+      --set image.repository="$IMAGE_REPO"
+      --set image.tag="$IMAGE_TAG"
+      --set-string ingress.hosts[0].host="$SH_INGRESS_HOST"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "sh-develop"'
+
+smoke_shanghai_dev:
+  stage: smoke
+  image:
+    name: $SH_KUBECTL_IMAGE
+    entrypoint: [""]
+  tags: ["ack-sh-dev"]
+  needs: ["deploy_shanghai_dev"]
+  variables:
+    GIT_STRATEGY: "none"
+  script:
+    - KCFG="$KUBECONFIG_B64_ACK_SH_DEV"
+    - test -n "$KCFG"
+    - echo "$KCFG" | base64 -d > kubeconfig
+    - chmod 600 kubeconfig
+    - export KUBECONFIG="$PWD/kubeconfig"
+    - kubectl -n "$SH_DEV_NAMESPACE" rollout status deploy/"$SH_HELM_RELEASE" --timeout=300s
+    - kubectl -n "$SH_DEV_NAMESPACE" run smoke-sh-web --rm -i --restart=Never --image="$SH_CURL_IMAGE" -- curl -fsS "http://$SH_HELM_RELEASE/healthz"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "sh-develop"'
+
+build_image_aws:
+  stage: build
+  image:
+    name: $BUILDAH_IMAGE
+    entrypoint: [""]
+  tags: ["aws-dev-eks"]
+  variables:
+    STORAGE_DRIVER: vfs
+    BUILDAH_FORMAT: docker
+    BUILDAH_ISOLATION: chroot
+  script:
+    - IMAGE_REPO="${AWS_ECR_REGISTRY}/${AWS_ECR_REPOSITORY}"
+    - IMAGE_TAG="$CI_COMMIT_SHORT_SHA"
+    - test -n "$AWS_REGION"
+    - test -n "$AWS_ECR_REGISTRY"
+    - test -n "$AWS_ECR_REPOSITORY"
+    - |
+      if command -v dnf >/dev/null 2>&1; then
+        dnf install -y awscli
+      elif command -v microdnf >/dev/null 2>&1; then
+        microdnf install -y awscli
+      elif command -v apk >/dev/null 2>&1; then
+        apk add --no-cache aws-cli
+      fi
+    - aws sts get-caller-identity
+    - aws ecr get-login-password --region "$AWS_REGION" | buildah login -u AWS --password-stdin "$AWS_ECR_REGISTRY"
+    - buildah build --build-arg NODE_IMAGE="$NODE_IMAGE" --build-arg NGINX_IMAGE="$NGINX_IMAGE" -t "$IMAGE_REPO:$IMAGE_TAG" -t "$IMAGE_REPO:develop-latest" .
+    - buildah push "$IMAGE_REPO:$IMAGE_TAG"
+    - buildah push "$IMAGE_REPO:develop-latest"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+
+deploy_aws_dev:
+  stage: deploy
+  image: $HELM_IMAGE
+  tags: ["aws-dev-eks"]
+  needs: ["build_image_aws"]
+  script:
+    - IMAGE_REPO="${AWS_ECR_REGISTRY}/${AWS_ECR_REPOSITORY}"
+    - IMAGE_TAG="$CI_COMMIT_SHORT_SHA"
+    - test -n "$AWS_DEV_NAMESPACE"
+    - test -n "$AWS_INGRESS_HOST"
+    - helm upgrade --install "$HELM_RELEASE" "$CHART_DIR" --namespace "$AWS_DEV_NAMESPACE" --values "$CHART_DIR/values-eks-dev.yaml" --set image.repository="$IMAGE_REPO" --set image.tag="$IMAGE_TAG" --set-string ingress.hosts[0].host="$AWS_INGRESS_HOST"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+
+smoke_aws_dev:
+  stage: smoke
+  image:
+    name: $KUBECTL_IMAGE
+    entrypoint: [""]
+  tags: ["aws-dev-eks"]
+  needs: ["deploy_aws_dev"]
+  script:
+    - kubectl -n "$AWS_DEV_NAMESPACE" rollout status deploy/"$HELM_RELEASE" --timeout=180s
+    - kubectl -n "$AWS_DEV_NAMESPACE" run smoke-aws --rm -i --restart=Never --image="$CURL_IMAGE" -- curl -fsS "http://$HELM_RELEASE/healthz"
+    - 'kubectl -n "$AWS_DEV_NAMESPACE" run smoke-aws-shared-alb --rm -i --restart=Never --image="$CURL_IMAGE" -- curl -kfsS -H "Host: $AWS_INGRESS_HOST" "https://$AWS_SHARED_ALB_HOST/healthz"'
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'

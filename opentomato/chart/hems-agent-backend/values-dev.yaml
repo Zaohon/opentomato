@@ -1,0 +1,25 @@
+replicaCount: 1
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "180"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "180"
+    nginx.ingress.kubernetes.io/proxy-body-size: "200m"
+  hosts:
+    - host: ""
+      paths:
+        - path: /api/v1
+          pathType: Prefix
+
+probes:
+  periodSeconds: 60
+
+env:
+  LOG_OUTPUT: both
+  LOG_LANGUAGE: cn
+  LOG_TIMING_ENABLED: "true"
+  OPENVIKING_ENABLED: "true"
+  OPENVIKING_STRONG_ISOLATION: "true"

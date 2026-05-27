@@ -1,0 +1,5 @@
+{
+  "name": "FeSolar HEMS",
+  "description": "五合一光储一体化设备的web端家庭能量管理系统，采用苹果风格设计，具备3D可视化和AI优化功能。",
+  "requestFramePermissions": []
+}
